@@ -100,16 +100,21 @@
                     android:orientation="horizontal">
 
                     <RadioButton
-                        android:id="@+id/elderlyRadioButton"
+                        android:id="@+id/adminlyRadioButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Elder" />
+                        android:text="admin" />
 
                     <RadioButton
                         android:id="@+id/caregiverRadioButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Caregiver" />
+                    <RadioButton
+                        android:id="@+id/elderRadioButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Elder" />
 
 
                 </RadioGroup>
@@ -123,6 +128,8 @@
                 android:paddingHorizontal="10dp"
                 android:visibility="gone"
                 />
+
+
 
 
 

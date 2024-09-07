@@ -51,18 +51,33 @@ class HomeeFragment : Fragment() {
                 val userType = documentSnapshot.getString("userType")
                 Log.d("HomeeFragment", "User type: $userType")
 
-                val caregivers = documentSnapshot.get("caregivers") as? List<String>
-
-                if (caregivers != null && caregivers.isNotEmpty()) {
-                    Log.d("HomeeFragment", "User is an Elderly Person")
-                    fetchMedicineSchedules(currentUser.uid)
-                } else {
-                    // User is a caregiver
-                    val caregiverCode = documentSnapshot.getString("caregiverCode")
-                    if (caregiverCode != null) {
-                        fetchLinkedElderlyPersonUid(caregiverCode)
-                    } else {
-                        Log.e("HomeeFragment", "Caregiver code is null.")
+                when (userType) {
+                    "adminly" -> {
+                        // User is an adminly Person
+                        Log.d("HomeeFragment", "User is an adminly Person")
+                        fetchMedicineSchedules(currentUser.uid)
+                    }
+                    "Elder" -> {
+                        // User is an Elder
+                        val caregiverCode = documentSnapshot.getString("caregiverCode")
+                        if (caregiverCode != null) {
+                            Log.d("HomeeFragment", "Caregiver code found for Elder: $caregiverCode")
+                            fetchLinkedAdminUser(caregiverCode)
+                        } else {
+                            Log.e("HomeeFragment", "Caregiver code is null for Elder.")
+                        }
+                    }
+                    "Caregiver" -> {
+                        // User is a caregiver
+                        val caregiverCode = documentSnapshot.getString("caregiverCode")
+                        if (caregiverCode != null) {
+                            fetchLinkedAdminlyPersonUid(caregiverCode)
+                        } else {
+                            Log.e("HomeeFragment", "Caregiver code is null.")
+                        }
+                    }
+                    else -> {
+                        Log.e("HomeeFragment", "Unknown user type.")
                     }
                 }
             }.addOnFailureListener { e ->
@@ -73,28 +88,43 @@ class HomeeFragment : Fragment() {
         }
     }
 
-
-
-
-    private fun fetchLinkedElderlyPersonUid(caregiverCode: String) {
+    private fun fetchLinkedAdminUser(caregiverCode: String) {
         val usersRef = FirebaseFirestore.getInstance().collection("users")
 
         usersRef.whereEqualTo("caregiverCode", caregiverCode)
             .get()
             .addOnSuccessListener { result ->
                 if (result.isEmpty) {
-                    Log.e("HomeeFragment", "No elderly users found linked to this caregiver.")
+                    Log.e("HomeeFragment", "No adminly users found linked to this caregiver.")
                 } else {
-                    val elderlyUid = result.documents[0].id
-                    Log.d("HomeeFragment", "Found elderly UID: $elderlyUid")
-                    fetchMedicineSchedules(elderlyUid)
+                    val adminlyUid = result.documents[0].id
+                    Log.d("HomeeFragment", "Found adminly UID: $adminlyUid")
+                    fetchMedicineSchedules(adminlyUid)
                 }
             }
             .addOnFailureListener { e ->
-                Log.e("HomeeFragment", "Failed to fetch elderly person data.", e)
+                Log.e("HomeeFragment", "Failed to fetch adminly person data.", e)
             }
     }
 
+    private fun fetchLinkedAdminlyPersonUid(caregiverCode: String) {
+        val usersRef = FirebaseFirestore.getInstance().collection("users")
+
+        usersRef.whereEqualTo("caregiverCode", caregiverCode)
+            .get()
+            .addOnSuccessListener { result ->
+                if (result.isEmpty) {
+                    Log.e("HomeeFragment", "No adminly users found linked to this caregiver.")
+                } else {
+                    val adminlyUid = result.documents[0].id
+                    Log.d("HomeeFragment", "Found adminly UID: $adminlyUid")
+                    fetchMedicineSchedules(adminlyUid)
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("HomeeFragment", "Failed to fetch adminly person data.", e)
+            }
+    }
 
     private fun fetchMedicineSchedules(userId: String) {
         val userMedicineRef = database.child(userId)

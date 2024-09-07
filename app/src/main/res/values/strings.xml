@@ -111,7 +111,7 @@
 
     <string name="myaccount_frgbtn">Forgotten your password?</string>
     <string-array name="user_array">
-        <item>Elderly person</item>
+        <item>adminly person</item>
         <item>Care giver</item>
     </string-array>
 

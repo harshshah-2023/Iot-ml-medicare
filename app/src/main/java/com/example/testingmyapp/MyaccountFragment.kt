@@ -48,8 +48,8 @@ class MyaccountFragment : Fragment() {
 
                         usernameTextView.text = username
 
-                        // Show code only if the user is elderly
-                        if (userType == "Elderly") {
+                        // Show code only if the user is adminly
+                        if (userType == "adminly") {
                             codeTextView.text = code
                             codeTextView.visibility = View.VISIBLE
                         } else {

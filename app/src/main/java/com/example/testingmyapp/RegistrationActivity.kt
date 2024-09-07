@@ -59,12 +59,13 @@ class RegistrationActivity : AppCompatActivity() {
         userTypeRadioGroup.setOnCheckedChangeListener { _, checkedId ->
             selectedUserType = when (checkedId) {
                 R.id.caregiverRadioButton -> "Caregiver"
-                R.id.elderlyRadioButton -> "Elderly"
+                R.id.adminlyRadioButton -> "adminly"
+                R.id.elderRadioButton -> "Elder"
                 else -> null
             }
 
             // Show or hide the caregiver code field based on selection
-            caregiverCodeEditText.visibility = if (selectedUserType == "Caregiver") {
+            caregiverCodeEditText.visibility = if (selectedUserType == "Caregiver" || selectedUserType == "Elder") {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -99,8 +100,8 @@ class RegistrationActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            if (selectedUserType == "Caregiver" && TextUtils.isEmpty(caregiverCode)) {
-                caregiverCodeEditText.error = "Caregiver code is required"
+            if ((selectedUserType == "Caregiver" || selectedUserType == "Elder") && TextUtils.isEmpty(caregiverCode)) {
+                caregiverCodeEditText.error = "Code is required"
                 return@setOnClickListener
             }
 
@@ -115,10 +116,10 @@ class RegistrationActivity : AppCompatActivity() {
                         Log.d("Registration", "User created successfully with UID: $userId")
 
                         if (userId != null) {
-                            if (selectedUserType == "Elderly") {
-                                createElderlyUser(userId, email, name)
-                            } else {
-                                linkCaregiverToElderly(caregiverCode, userId)
+                            when (selectedUserType) {
+                                "adminly" -> createAdminlyUser(userId, email, name)
+                                "Caregiver" -> linkUserToAdminly(caregiverCode, userId, "Caregiver", name, email)
+                                "Elder" -> linkUserToAdminly(caregiverCode, userId, "Elder", name, email)
                             }
                         } else {
                             Log.e("Registration", "User ID is null after creation.")
@@ -148,25 +149,26 @@ class RegistrationActivity : AppCompatActivity() {
             .joinToString("")
     }
 
-    private fun createElderlyUser(userId: String, email: String, name: String) {
-        val elderlyCode = generateUniqueCode()
+    private fun createAdminlyUser(userId: String, email: String, name: String) {
+        val adminlyCode = generateUniqueCode()
         val medicineScheduleId = firestore.collection("medicine_schedules").document().id
 
-        val elderlyUser = hashMapOf(
+        val adminlyUser = hashMapOf(
             "name" to name,
             "email" to email,
-            "userType" to "Elderly",
-            "caregiverCode" to elderlyCode,
+            "userType" to "adminly",
+            "caregiverCode" to adminlyCode,
             "medicineScheduleId" to medicineScheduleId,
-            "caregivers" to emptyList<String>()
+            "caregivers" to emptyList<String>(),
+            "elders" to emptyList<String>()
         )
 
-        firestore.collection("users").document(userId).set(elderlyUser)
+        firestore.collection("users").document(userId).set(adminlyUser)
             .addOnSuccessListener {
-                Log.d("Firestore", "Elderly account created and stored successfully.")
+                Log.d("Firestore", "Adminly account created and stored successfully.")
                 Toast.makeText(
                     baseContext,
-                    "Elderly account created successfully.",
+                    "Adminly account created successfully.",
                     Toast.LENGTH_SHORT
                 ).show()
 
@@ -177,86 +179,95 @@ class RegistrationActivity : AppCompatActivity() {
                 finish()
             }
             .addOnFailureListener { e ->
-                Log.e("Firestore", "Failed to store elderly user details.", e)
+                Log.e("Firestore", "Failed to store adminly user details.", e)
                 Toast.makeText(
                     baseContext,
-                    "Failed to store elderly user details.",
+                    "Failed to store adminly user details.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
     }
 
-    private fun linkCaregiverToElderly(caregiverCode: String, caregiverUid: String) {
-        Log.d("CaregiverLink", "Attempting to link caregiver with code: $caregiverCode")
+    private fun linkUserToAdminly(code: String, userId: String, userType: String, name: String, email: String) {
+        Log.d("UserLink", "Attempting to link $userType with code: $code")
 
         firestore.collection("users")
-            .whereEqualTo("caregiverCode", caregiverCode)
+            .whereEqualTo("caregiverCode", code)
             .get()
             .addOnSuccessListener { result ->
                 if (result.isEmpty) {
-                    Log.e("CaregiverLink", "Invalid caregiver code: No elderly user found.")
+                    Log.e("UserLink", "Invalid code: No adminly user found.")
                     Toast.makeText(
                         baseContext,
-                        "Invalid caregiver code.",
+                        "Invalid code.",
                         Toast.LENGTH_SHORT
                     ).show()
                     return@addOnSuccessListener
                 }
 
-                val elderlyUserId = result.documents[0].id
-                val elderlyUser = result.documents[0].data
+                val adminlyUserId = result.documents[0].id
+                val adminlyUser = result.documents[0].data
 
-                Log.d("CaregiverLink", "Found elderly user with UID: $elderlyUserId")
+                Log.d("UserLink", "Found adminly user with UID: $adminlyUserId")
 
-                // Create caregiver user
-                val caregiverUser = hashMapOf(
-                    "name" to nameEditText.text.toString().trim(),
-                    "email" to emailEditText.text.toString().trim(),
-                    "userType" to "Caregiver",
-                    "caregiverCode" to caregiverCode,
-                    "medicineScheduleId" to elderlyUser?.get("medicineScheduleId") as String?,
-                    "caregivers" to emptyList<String>()
+                // Create linked user (either Caregiver or Elder)
+                val user = hashMapOf(
+                    "name" to name,
+                    "email" to email,
+                    "userType" to userType,
+                    "caregiverCode" to code,
+                    "medicineScheduleId" to adminlyUser?.get("medicineScheduleId") as String?,
                 )
 
-                firestore.collection("users").document(caregiverUid).set(caregiverUser)
+                firestore.collection("users").document(userId).set(user)
                     .addOnSuccessListener {
-                        Log.d("Firestore", "Caregiver account created and stored successfully.")
+                        Log.d("Firestore", "$userType account created and stored successfully.")
                         Toast.makeText(
                             baseContext,
-                            "Caregiver account created successfully.",
+                            "$userType account created successfully.",
                             Toast.LENGTH_SHORT
                         ).show()
 
-                        // Update elderly user's caregivers list and navigate
-                        updateElderlyCaregivers(elderlyUserId, caregiverUid)
+                        // Update adminly user's linked users list (caregivers or elders)
+                        if (userType == "Caregiver") {
+                            updateAdminlyUsersList(adminlyUserId, userId, "caregivers")
+                        } else if (userType == "Elder") {
+                            updateAdminlyUsersList(adminlyUserId, userId, "elders")
+                        }
                     }
                     .addOnFailureListener { e ->
-                        Log.e("FirestoreUpdate", "Failed to store caregiver details.", e)
+                        Log.e("FirestoreUpdate", "Failed to store $userType details.", e)
                         Toast.makeText(
                             baseContext,
-                            "Failed to store caregiver details.",
+                            "Failed to store $userType details.",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
             }
             .addOnFailureListener { e ->
-                Log.e("CaregiverLink", "Failed to fetch elderly user.", e)
+                Log.e("UserLink", "Failed to fetch adminly user.", e)
                 Toast.makeText(
                     baseContext,
-                    "Failed to verify caregiver code.",
+                    "Error fetching adminly user.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
     }
 
-    private fun updateElderlyCaregivers(elderlyUserId: String, caregiverUid: String) {
-        val caregiverMap = mapOf(caregiverUid to true)
+    private fun updateAdminlyUsersList(adminlyUserId: String, userId: String, listName: String) {
+        val updateData = mapOf(
+            listName to FieldValue.arrayUnion(userId)
+        )
 
-        // Update the caregivers map under the elderlyUserId
-        firestore.collection("users").document(elderlyUserId)
-            .update("caregivers.$caregiverUid", true) // Adding the caregiver UID as a key with value true
+        firestore.collection("users").document(adminlyUserId)
+            .update(updateData)
             .addOnSuccessListener {
-                Log.d("Firestore", "Elderly user's caregivers list updated successfully.")
+                Log.d("FirestoreUpdate", "Adminly user's $listName updated with $userId.")
+                Toast.makeText(
+                    baseContext,
+                    "User linked to adminly successfully.",
+                    Toast.LENGTH_SHORT
+                ).show()
 
                 // Navigate to HomeActivity or other fragment
                 val intent = Intent(this, MainActivity::class.java)
@@ -265,31 +276,33 @@ class RegistrationActivity : AppCompatActivity() {
                 finish()
             }
             .addOnFailureListener { e ->
-                Log.e("FirestoreUpdate", "Failed to update elderly user's caregivers list.", e)
+                Log.e("FirestoreUpdate", "Failed to update adminly user's $listName.", e)
                 Toast.makeText(
                     baseContext,
-                    "Failed to update elderly user's caregivers list.",
+                    "Failed to update adminly user's $listName.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
     }
 
-
     private fun handleRegistrationError(exception: Exception?) {
-        Log.e("Registration", "User registration failed.", exception)
+        Log.e("Registration", "Registration failed.", exception)
 
-        if (exception is FirebaseAuthUserCollisionException) {
-            Toast.makeText(
-                baseContext,
-                "This email is already registered.",
-                Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            Toast.makeText(
-                baseContext,
-                "Registration failed. Please try again.",
-                Toast.LENGTH_SHORT
-            ).show()
+        when (exception) {
+            is FirebaseAuthUserCollisionException -> {
+                Toast.makeText(
+                    this,
+                    "This email is already registered.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            else -> {
+                Toast.makeText(
+                    this,
+                    "Registration failed: ${exception?.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 }
